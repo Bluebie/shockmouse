@@ -1,0 +1,108 @@
+{
+   'variables': {
+      'driver%': 'libusb'
+  },
+  'targets': [
+    {
+      'target_name': 'hidapi',
+      'type': 'static_library',
+      'conditions': [
+        [ 'OS=="mac"', {
+          'sources': [ 'hidapi/mac/hid.c' ],
+          'include_dirs+': [
+            '/usr/include/libusb-1.0/'
+          ]
+        }],
+        [ 'OS=="linux"', {
+          'conditions': [
+            [ 'driver=="libusb"', {
+              'sources': [ 'hidapi/libusb/hid.c' ],
+              'include_dirs+': [
+                '/usr/include/libusb-1.0/'
+              ]
+            }],
+            [ 'driver=="hidraw"', {
+              'sources': [ 'hidapi/linux/hid.c' ]
+            }]
+          ]
+        }],
+        [ 'OS=="win"', {
+          'sources': [ 'hidapi/windows/hid.c' ],
+          'msvs_settings': {
+            'VCLinkerTool': {
+              'AdditionalDependencies': [
+                'setupapi.lib',
+              ]
+            }
+          }
+        }]
+      ],
+      'direct_dependent_settings': {
+        'include_dirs': [
+          'hidapi/hidapi'
+        ]
+      },
+      'include_dirs': [
+        'hidapi/hidapi'
+      ],
+      'defines': [
+        '_LARGEFILE_SOURCE',
+        '_FILE_OFFSET_BITS=64',
+      ],
+      'cflags': ['-g'],
+      'cflags!': [
+        '-ansi'
+      ]
+    },
+    {
+      'target_name': 'HID',
+      'sources': [ 'src/HID.cc' ],
+      'dependencies': ['hidapi'],
+      'defines': [
+        '_LARGEFILE_SOURCE',
+        '_FILE_OFFSET_BITS=64',
+      ],
+      'conditions': [
+        [ 'OS=="mac"', {
+          'ldflags': [
+            '-framework',
+            'IOKit',
+            '-framework',
+            'CoreFoundation'
+          ],
+          'xcode_settings': {
+            'GCC_ENABLE_CPP_EXCEPTIONS': 'YES'
+          }
+        }],
+        [ 'OS=="linux"', {
+          'conditions': [
+            [ 'driver=="libusb"', {
+              'libraries': [
+                '-lusb-1.0'
+              ]
+            }],
+            [ 'driver=="hidraw"', {
+              'libraries': [
+                '-ludev',
+                '-lusb-1.0'
+              ]
+            }]
+          ],
+        }],
+        [ 'OS=="win"', {
+          'msvs_settings': {
+            'VCLinkerTool': {
+              'AdditionalDependencies': [
+                'setupapi.lib'
+              ]
+            }
+          }
+        }]
+      ],
+      'cflags!': ['-ansi', '-fno-exceptions' ],
+      'cflags_cc!': [ '-fno-exceptions' ],
+      'cflags': ['-g', '-exceptions'],
+      'cflags_cc': ['-g', '-exceptions']
+    }
+  ]
+}
