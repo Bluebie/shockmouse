@@ -1,0 +1,25 @@
+{
+  "name": "ShockMouse",
+  "homepage": "https://github.com/bluebie/shockmouseapp",
+  "bugs": "https://github.com/bluebie/shockmouseapp/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bluebie/shockmouseapp.git"
+  },
+  "license": "GPL-3.0",
+  "main": "app://host/index.html",
+  "version": "0.1.0",
+  "window": {
+    "title": "ShockMouse",
+    "icon": "images/icon.png",
+    "toolbar": true,
+    "frame": true,
+    "width": 800,
+    "height": 500,
+    "resizable": false,
+    "position": "center"
+  },
+  "dependencies": {
+    "ds4": "0.1.1"
+  }
+}
