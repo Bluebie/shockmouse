@@ -80,20 +80,22 @@ DS4Gamepad = (function(_super) {
   }
 
   DS4Gamepad.prototype.set = function(changes) {
-    var key, offset, pkt, prep, value, _ref;
+    var i, key, offset, pkt, prep, value, _i, _ref;
     for (key in changes) {
       value = changes[key];
       this._config[key] = value;
     }
     if (this.wireless) {
       pkt = new Array(77);
-      pkt[0] = 128;
-      pkt[2] = 255;
-      offset = 2;
+      pkt[0] = 0x11;
+      pkt[1] = 128;
+      pkt[3] = 255;
+      offset = 3;
     } else {
       pkt = new Array(31);
-      pkt[0] = 255;
-      offset = 0;
+      pkt[0] = 0x05;
+      pkt[1] = 255;
+      offset = 1;
     }
     prep = function(val) {
       return Math.max(0, Math.min(Math.round(val * 255), 255));
@@ -103,11 +105,14 @@ DS4Gamepad = (function(_super) {
     pkt[offset + 5] = prep(this._config.red);
     pkt[offset + 6] = prep(this._config.green);
     pkt[offset + 7] = prep(this._config.blue);
-    pkt[offset + 8] = prep(this._config.flash_on_duration);
-    pkt[offset + 9] = prep(this._config.flash_off_duration);
-    return pkt.unshift((_ref = this.wireless) != null ? _ref : {
-      0x11: 0x05
-    });
+    pkt[offset + 8] = prep(this._config.flash_on_duration / 2.55);
+    pkt[offset + 9] = prep(this._config.flash_off_duration / 2.55);
+    for (i = _i = 0, _ref = pkt.length; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
+      if (pkt[i] == null) {
+        pkt[i] = 0;
+      }
+    }
+    return this.hid.write(pkt);
   };
 
   DS4Gamepad.prototype._receive_report = function(data) {

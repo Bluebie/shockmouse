@@ -99,13 +99,15 @@ class DS4Gamepad extends events.EventEmitter
 
     if @wireless
       pkt = new Array(77)
-      pkt[0] = 128
-      pkt[2] = 255
-      offset = 2
+      pkt[0] = 0x11 # feature report id
+      pkt[1] = 128
+      pkt[3] = 255
+      offset = 3
     else
       pkt = new Array(31)
-      pkt[0] = 255
-      offset = 0
+      pkt[0] = 0x05 # feature report id
+      pkt[1] = 255
+      offset = 1
 
     prep = (val)-> Math.max(0, Math.min(Math.round(val * 255), 255))
 
@@ -115,12 +117,11 @@ class DS4Gamepad extends events.EventEmitter
     pkt[offset+5] = prep(@_config.red)
     pkt[offset+6] = prep(@_config.green)
     pkt[offset+7] = prep(@_config.blue)
-    pkt[offset+8] = prep(@_config.flash_on_duration)
-    pkt[offset+9] = prep(@_config.flash_off_duration)
-
-    pkt.unshift @wireless ? 0x11 : 0x05 # prepend feature report id
-    # disabled - crashes node for now...
-    #@hid.sendFeatureReport(pkt)
+    pkt[offset+8] = prep(@_config.flash_on_duration / 2.55)
+    pkt[offset+9] = prep(@_config.flash_off_duration / 2.55)
+    
+    pkt[i] ?= 0 for i in [0...pkt.length] # replace any nulls with 0's
+    @hid.write pkt
   
   _receive_report: (data)->
     #@timestamp = new Date
