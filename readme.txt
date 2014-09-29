@@ -11,11 +11,13 @@ Ideas/Todo:
  - Right click via two finger tap
  - Figure out why horizontal scrolling doesn't work in NextEvent
  - Retrieve and respect inverted scrolling system setting
+ - Key repeat for arrow buttons (menu navigation)
  - Momentum in scrolling
  - Experiment with mouse momentum
  - Clamp mouse to screen width and height
  - Improve tap to click gesture to avoid accidental triggering
- - Keyboard mapping of buttons?
+ - Keyboard mapping of more buttons
+ - Custom keyboard mapping?
  - Steam Big Picture style text entry mode
  - Analog Stick scrolling option
  - Trackpad zoom gesture (screen zoom?)
