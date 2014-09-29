@@ -27,3 +27,15 @@ Looking for collaborators and contributors, especially ideas around trackpad
 multitouch api design, gesture classifiers and general data massaging to
 improve mapping of finger movements to mouse stuff. I'd also like to talk to
 any interested user interface designers on designing app interface
+
+
+=== Building Info ===
+Native extensions (currently ffi, ref, in NodObjC, and node-hid under ds4)
+require rebuilding using nw-gyp (available in npm) to be compatible with
+node-webkit 0.8.6. To do this for node-hid for example:
+
+  cd node_modules/ds4/node_modules/node-hid
+  nw-gyp rebuild --target=0.8.6
+
+The binary components will then be rebuilt. This seems to require Xcode
+be installed to build on Mac, not just apple's terminal build tools.
