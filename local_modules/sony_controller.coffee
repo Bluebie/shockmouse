@@ -1,8 +1,7 @@
 # build with `coffee -wcmb .`
-_ = require './node_modules/ds4/node_modules/lodash'
-hid = require './node_modules/ds4/node_modules/node-hid'
-ds4 = require './node_modules/ds4'
-child_process = require 'child_process'
+_ = require '../node_modules/ds4/node_modules/lodash'
+hid = require '../node_modules/ds4/node_modules/node-hid'
+ds4 = require '../node_modules/ds4'
 events = require('events')
 
 # hid device filters
@@ -65,6 +64,9 @@ class DS4TouchEvent extends events.EventEmitter
   constructor: ->
     @created = new Date
     @delta = {x: 0, y: 0}
+
+tickEmit = (target, event, arg)->
+  return -> target.emit(event, arg)
 
 class DS4Gamepad extends events.EventEmitter
   constructor: (device_descriptor)->
@@ -136,9 +138,6 @@ class DS4Gamepad extends events.EventEmitter
         active: info["trackPadTouch#{idx}Active"]
         id: info["trackPadTouch#{idx}Id"]
       }
-    
-    tickEmit = (target, event, arg)->
-      -> target.emit(event, arg)
     
     for idx in [0,1]
       # update touch cache

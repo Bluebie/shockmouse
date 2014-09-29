@@ -1,5 +1,5 @@
 # Module for posting HID events in to the NeXTSTEP system to move mouse around and enter keystrokes and things
-ObjC = require 'NodObjC'
+ObjC = require '../node_modules/NodObjC'
 ObjC.import 'ApplicationServices'
 
 post = (event)-> ObjC.CGEventPost ObjC.kCGHIDEventTap, event

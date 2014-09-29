@@ -9,6 +9,7 @@ by pressing in the trackpad button.
 Ideas/Todo:
  - Right click via two finger click
  - Right click via two finger tap
+ - Visualise touches on trackpad in UI because it's cool
  - Figure out why horizontal scrolling doesn't work in NextEvent
  - Retrieve and respect inverted scrolling system setting
  - Key repeat for arrow buttons (menu navigation)
