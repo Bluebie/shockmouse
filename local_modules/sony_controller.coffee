@@ -2,6 +2,7 @@
 _ = require '../node_modules/ds4/node_modules/lodash'
 hid = require '../node_modules/ds4/node_modules/node-hid'
 ds4 = require '../node_modules/ds4'
+Color = require 'color'
 events = require('events')
 
 # hid device filters
@@ -81,7 +82,7 @@ class DS4Gamepad extends events.EventEmitter
     @trackpad = { touches: [] }
     @_previous_report = {}
     @_touch_obj_cache = [] # cache touch objects so users can add metadata to them which survives between events
-    @_config = {red: 0.25, green: 0.25, blue: 0.25, small_rumble: 0, big_rumble: 0, flash_on_duration: 0.0, flash_off_duration: 0.0}
+    @_config = {led: '#000005', blink: false, rumble: 0}
     
     # parse incomming reports from controller
     @hid.on 'data', (buf)=>
@@ -91,12 +92,14 @@ class DS4Gamepad extends events.EventEmitter
   
   
   # optionally accepts: {
-  #   red:0.0-1.0, green:0.0-1.0, blue:0.0-1.0,
-  #   small_rumble: 0.0-1.0, big_rumble: 0.0-1.0
-  #   flashing: boolean, flash_on_duration: 0.0-2.5 (seconds), flash_off_duration: 0.0-2.5 (seconds)
+  #   led: "any valid html color code"
+  #   blink: false, true, or {on: 0-2.55, off: 0-2.55} to specify light flash duration
+  #   rumble: 0-1, or {fine: 0-1, coarse: 0-1} to set individual values
   set: (changes)->
+    throw new Error "Unknown setting #{setting}" for setting, value of changes when !@_config[setting]?
     @_config[key] = value for key, value of changes
-
+    @_config.rumble_coarse = @_config.rumble_fine = changes.rumble if changes.rumble?
+    
     if @wireless
       pkt = new Array(77)
       pkt[0] = 0x11 # feature report id
@@ -110,19 +113,41 @@ class DS4Gamepad extends events.EventEmitter
       offset = 1
 
     prep = (val)-> Math.max(0, Math.min(Math.round(val * 255), 255))
-
+    
+    color = Color(@_config.led)
+    
+    blinkmode = if typeof(@_config.blink) is 'object'
+      @_config.blink
+    else if @_config.blink is true
+      { on: 0.25, off: 0.5 }
+    else if @_config.blink is false
+      {on: 0, off: 0}
+    else
+      throw new Error "Blink value invalid"
+    
+    rumble = if typeof(@_config.rumble) is 'object'
+      @_config.rumble
+    else
+      {fine: @_config.rumble, coarse: @_config.rumble}
+    
+    throw new Error "Blink durations cannot exceed 2.55 seconds" if blinkmode.on > 2.55 or blinkmode.off > 2.55
+    throw new Error "Rumble values must be numbers between 0.0 and 1.0" unless typeof(rumble.coarse) is 'number' and 0 <= rumble.coarse <= 1
+    throw new Error "Rumble values must be numbers between 0.0 and 1.0" unless typeof(rumble.fine) is 'number' and 0 <= rumble.fine <= 1
+    
     # config data
-    pkt[offset+3] = prep(@_config.small_rumble)
-    pkt[offset+4] = prep(@_config.big_rumble)
-    pkt[offset+5] = prep(@_config.red)
-    pkt[offset+6] = prep(@_config.green)
-    pkt[offset+7] = prep(@_config.blue)
-    pkt[offset+8] = prep(@_config.flash_on_duration / 2.55)
-    pkt[offset+9] = prep(@_config.flash_off_duration / 2.55)
+    pkt[offset+3] = prep(rumble.fine)
+    pkt[offset+4] = prep(rumble.coarse)
+    pkt[offset+5] = color.red()
+    pkt[offset+6] = color.green()
+    pkt[offset+7] = color.blue()
+    pkt[offset+8] = prep(blinkmode.on / 2.55)
+    pkt[offset+9] = prep(blinkmode.off / 2.55)
     
     pkt[i] ?= 0 for i in [0...pkt.length] # replace any nulls with 0's
     @hid.write pkt
   
+  
+  # Internal: Read new data from Wireless Controller packet, fire off events and stuff
   _receive_report: (data)->
     #@timestamp = new Date
     @report = data
