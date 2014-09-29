@@ -29,7 +29,7 @@ DS4TouchEvent = (function(_super) {
   __extends(DS4TouchEvent, _super);
 
   function DS4TouchEvent() {
-    this.start_timestamp = new Date;
+    this.created = new Date;
     this.delta = {
       x: 0,
       y: 0
@@ -52,7 +52,9 @@ DS4Gamepad = (function(_super) {
     }
     this.report = {};
     this.timestamp = new Date;
-    this.touches = [];
+    this.trackpad = {
+      touches: []
+    };
     this._previous_report = {};
     this._touch_obj_cache = [];
     this._config = {
@@ -105,16 +107,21 @@ DS4Gamepad = (function(_super) {
   };
 
   DS4Gamepad.prototype._receive_report = function(data) {
-    var idx, key, makeTouchObj, new_touch, old_touch, touch, value, _base, _i, _len, _name, _ref, _ref1;
+    var idx, key, makeTouchObj, new_touch, old_touch, tickEmit, touch, value, _base, _i, _len, _name, _ref, _ref1;
     this.report = data;
     this.emit('report', data);
-    this.touches = [];
+    this.trackpad.touches = [];
     makeTouchObj = function(info, idx) {
       return {
         x: info["trackPadTouch" + idx + "X"],
         y: info["trackPadTouch" + idx + "Y"],
         active: info["trackPadTouch" + idx + "Active"],
         id: info["trackPadTouch" + idx + "Id"]
+      };
+    };
+    tickEmit = function(target, event, arg) {
+      return function() {
+        return target.emit(event, arg);
       };
     };
     _ref = [0, 1];
@@ -131,35 +138,35 @@ DS4Gamepad = (function(_super) {
       touch.delta.x = new_touch.x - old_touch.x;
       touch.delta.y = new_touch.y - old_touch.y;
       if (old_touch.id !== new_touch.id && new_touch.active) {
-        this.emit('touchstart', touch);
+        process.nextTick(tickEmit(this, 'touchstart', touch));
       }
       if (old_touch.active && !new_touch.active) {
         this._touch_obj_cache[touch.id] = null;
-        this.emit('touchend', touch);
-        touch.emit('touchend', touch);
+        process.nextTick(tickEmit(this, 'touchend', touch));
+        process.nextTick(tickEmit(touch, 'touchend', touch));
       }
       if ((old_touch.x !== new_touch.x || old_touch.y !== new_touch.y) && old_touch.active && new_touch.active) {
-        this.emit('touchmove', touch);
-        touch.emit('touchmove', touch);
+        process.nextTick(tickEmit(this, 'touchmove', touch));
+        process.nextTick(tickEmit(touch, 'touchmove', touch));
       }
-      if (new_touch.active) {
-        this.touches.push(touch);
+      if (touch.active) {
+        this.trackpad.touches.push(touch);
       }
     }
     _ref1 = this.report;
     for (key in _ref1) {
       value = _ref1[key];
       if (value === true && this._previous_report[key] === false) {
-        this.emit('keydown', key);
-        this.emit("" + key);
+        process.nextTick(tickEmit(this, 'keydown', key));
+        process.nextTick(tickEmit(this, "" + key));
       }
       if (value === false && this._previous_report[key] === true) {
-        this.emit('keyup', key);
-        this.emit("" + key + "Release");
+        process.nextTick(tickEmit(this, 'keyup', key));
+        process.nextTick(tickEmit(this, "" + key + "Release"));
       }
       if (value !== this._previous_report[key] && typeof value === 'number' && key !== 'timestamp') {
-        this.emit('change', key, value);
-        this.emit("" + key + "Change", value);
+        process.nextTick(tickEmit(this, 'change', key, value));
+        process.nextTick(tickEmit(this, "" + key + "Change", value));
       }
     }
     return this._previous_report = data;
@@ -175,4 +182,4 @@ DS4Gamepad.devices = function() {
 
 exports.Gamepad = DS4Gamepad;
 
-//# sourceMappingURL=controller.js.map
+//# sourceMappingURL=sony_controller.js.map

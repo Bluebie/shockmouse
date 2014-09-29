@@ -10,50 +10,6 @@ isDS4HID = (descriptor)-> (descriptor.vendorId == 1356 && descriptor.productId =
 isBluetoothHID = (descriptor)-> descriptor.path.match(/^Bluetooth/)
 isUSBHID = (descriptor)-> descriptor.path.match(/^USB/)
 
-# #parseDS4HIDData = ds4.parseDS4HIDData
-# console.log "started"
-# devices = hid.devices()
-# console.log "devices: " + devices
-# controller = _(devices).filter(isDS4HID).first()
-# console.log "got controller" if controller
-#
-# throw new Error('Could not find desired controller.') unless controller
-#
-# hidDevice = new hid.HID(controller.path)
-# console.log "got hid device for controlle"
-# offset = 0
-#
-# if (isBluetoothHID(controller))
-#   offset = 2
-#   hidDevice.getFeatureReport(0x04, 66)
-#
-# console.log "Spawning mousing servant (cliclick)"
-# # spawn cliclick
-# cliclick = child_process.spawn("#{__dirname}/bin/cliclick", ['-f', '-']);
-#
-# console.log "Beginning parsing stream"
-# touches = []
-# previous_data = {}
-# hidDevice.on 'data', (buf)->
-#   #console.log(ds4.parseDS4HIDData(buf.slice(offset)))
-#   data = ds4.parseDS4HIDData(buf.slice(offset))
-#   touches = []
-#   makeTouchObj = (info, idx)-> {x: info["trackPadTouch#{idx}X"], y: info["trackPadTouch#{idx}Y"], active: info["trackPadTouch#{idx}Active"], id: info["trackPadTouch#{idx}Id"]}
-#   fire = (name, data)-> console.log "#{name}:", data
-#
-#   for idx in [0,1]
-#     old_touch = makeTouchObj(previous_data, idx)
-#     touch = makeTouchObj(data, idx)
-#     fire('touchstart', touch) if old_touch.id != touch.id and touch.active
-#     fire('touchend', touch) if old_touch.active and !touch.active
-#     fire('touchmove', touch) if (old_touch.x != touch.x or old_touch.y != old_touch.y) and old_touch.active and touch.active
-#
-#
-#   previous_data = data
-#   #console.log
-#   #  x: data.trackPadTouch0X
-#   #  y: data.trackPadTouch0Y
-
 # Represents a Sony DualShock 4 Gamepad
 # Touchpad has resolution of 1920x940 and a maximum of two-point multitouch
 # triggers are both analog and digital, and digitally read activated whenever analog value is > 0
@@ -107,7 +63,7 @@ isUSBHID = (descriptor)-> descriptor.path.match(/^USB/)
 
 class DS4TouchEvent extends events.EventEmitter
   constructor: ->
-    @start_timestamp = new Date
+    @created = new Date
     @delta = {x: 0, y: 0}
 
 class DS4Gamepad extends events.EventEmitter
@@ -120,7 +76,7 @@ class DS4Gamepad extends events.EventEmitter
     # setup some initial variables
     @report = {}
     @timestamp = new Date
-    @touches = []
+    @trackpad = { touches: [] }
     @_previous_report = {}
     @_touch_obj_cache = [] # cache touch objects so users can add metadata to them which survives between events
     @_config = {red: 0.25, green: 0.25, blue: 0.25, small_rumble: 0, big_rumble: 0, flash_on_duration: 0.0, flash_off_duration: 0.0}
@@ -172,7 +128,7 @@ class DS4Gamepad extends events.EventEmitter
     @emit 'report', data
     
     # detect changes on the touchpad
-    @touches = []
+    @trackpad.touches = []
     makeTouchObj = (info, idx)->
       {
         x: info["trackPadTouch#{idx}X"]
@@ -180,6 +136,9 @@ class DS4Gamepad extends events.EventEmitter
         active: info["trackPadTouch#{idx}Active"]
         id: info["trackPadTouch#{idx}Id"]
       }
+    
+    tickEmit = (target, event, arg)->
+      -> target.emit(event, arg)
     
     for idx in [0,1]
       # update touch cache
@@ -192,29 +151,29 @@ class DS4Gamepad extends events.EventEmitter
       touch.delta.y = new_touch.y - old_touch.y
       
       if old_touch.id != new_touch.id and new_touch.active
-        @emit('touchstart', touch)
+        process.nextTick tickEmit(this, 'touchstart', touch)
       if old_touch.active and !new_touch.active
         @_touch_obj_cache[touch.id] = null
-        @emit('touchend', touch)
-        touch.emit('touchend', touch)
+        process.nextTick tickEmit(this, 'touchend', touch)
+        process.nextTick tickEmit(touch, 'touchend', touch)
       if (old_touch.x != new_touch.x or old_touch.y != new_touch.y) and old_touch.active and new_touch.active
-        @emit('touchmove', touch)
-        touch.emit('touchmove', touch)
-      @touches.push(touch) if new_touch.active
+        process.nextTick tickEmit(this, 'touchmove', touch)
+        process.nextTick tickEmit(touch, 'touchmove', touch)
+      @trackpad.touches.push(touch) if touch.active
     
-    #@touches.sort((a,b)-> a.id - b.id)
+    #@trackpad.touches.sort((a,b)-> a.id - b.id)
     
     # detect changes to buttons
     for key, value of @report
       if value == true and @_previous_report[key] == false
-        @emit('keydown', key)
-        @emit("#{key}")
+        process.nextTick tickEmit(this, 'keydown', key)
+        process.nextTick tickEmit(this, "#{key}")
       if value == false and @_previous_report[key] == true
-        @emit('keyup', key)
-        @emit("#{key}Release")
+        process.nextTick tickEmit(this, 'keyup', key)
+        process.nextTick tickEmit(this, "#{key}Release")
       if value != @_previous_report[key] and typeof(value) == 'number' and key != 'timestamp'
-        @emit('change', key, value)
-        @emit("#{key}Change", value)
+        process.nextTick tickEmit(this, 'change', key, value)
+        process.nextTick tickEmit(this, "#{key}Change", value)
     
     @_previous_report = data
   
