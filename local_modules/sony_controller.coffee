@@ -152,9 +152,6 @@ class DS4Gamepad extends events.EventEmitter
     #@timestamp = new Date
     @report = data
     
-    # share report to interested listeners
-    @emit 'report', data
-    
     # detect changes on the touchpad
     @trackpad.touches = []
     makeTouchObj = (info, idx)->
@@ -203,20 +200,25 @@ class DS4Gamepad extends events.EventEmitter
         changes[key] = value
         #process.nextTick tickEmit(this, 'change', key, value)
         process.nextTick tickEmit(this, "#{key}Change", value)
+    
+    # share report to interested listeners
+    @emit 'report', data
     @emit 'change', changes if (key for key of changes).length isnt 0
+    
     @_previous_report = data
   
   _parse_report_data: (buf)->
+    dPad = buf[5] & 0b1111
     {
       leftAnalog: {x: buf[1] / 127.5 - 1, y: buf[2] / 127.5 - 1}
       rightAnalog: {x: buf[3] / 127.5 - 1, y: buf[4] / 127.5 - 1}
       l2Analog: buf[8] / 255
       r2Analog: buf[9] / 255
-
-      dPadUp:    buf[5] is 0 || buf[5] is 1 || buf[5] is 7
-      dPadRight: buf[5] is 1 || buf[5] is 2 || buf[5] is 3
-      dPadDown:  buf[5] is 3 || buf[5] is 4 || buf[5] is 5
-      dPadLeft:  buf[5] is 5 || buf[5] is 6 || buf[5] is 7
+      
+      dPadUp:    dPad is 0 || dPad is 1 || dPad is 7
+      dPadRight: dPad is 1 || dPad is 2 || dPad is 3
+      dPadDown:  dPad is 3 || dPad is 4 || dPad is 5
+      dPadLeft:  dPad is 5 || dPad is 6 || dPad is 7
 
       cross: (buf[5] & 32) isnt 0
       circle: (buf[5] & 64) isnt 0

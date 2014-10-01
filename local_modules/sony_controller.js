@@ -154,7 +154,6 @@ DS4Gamepad = (function(_super) {
   DS4Gamepad.prototype._receive_report = function(data) {
     var changes, idx, key, makeTouchObj, new_touch, old_touch, touch, value, _base, _i, _len, _name, _ref, _ref1;
     this.report = data;
-    this.emit('report', data);
     this.trackpad.touches = [];
     makeTouchObj = function(info, idx) {
       return {
@@ -212,6 +211,7 @@ DS4Gamepad = (function(_super) {
         process.nextTick(tickEmit(this, "" + key + "Change", value));
       }
     }
+    this.emit('report', data);
     if (((function() {
       var _results;
       _results = [];
@@ -226,6 +226,8 @@ DS4Gamepad = (function(_super) {
   };
 
   DS4Gamepad.prototype._parse_report_data = function(buf) {
+    var dPad;
+    dPad = buf[5] & 0xf;
     return {
       leftAnalog: {
         x: buf[1] / 127.5 - 1,
@@ -237,10 +239,10 @@ DS4Gamepad = (function(_super) {
       },
       l2Analog: buf[8] / 255,
       r2Analog: buf[9] / 255,
-      dPadUp: buf[5] === 0 || buf[5] === 1 || buf[5] === 7,
-      dPadRight: buf[5] === 1 || buf[5] === 2 || buf[5] === 3,
-      dPadDown: buf[5] === 3 || buf[5] === 4 || buf[5] === 5,
-      dPadLeft: buf[5] === 5 || buf[5] === 6 || buf[5] === 7,
+      dPadUp: dPad === 0 || dPad === 1 || dPad === 7,
+      dPadRight: dPad === 1 || dPad === 2 || dPad === 3,
+      dPadDown: dPad === 3 || dPad === 4 || dPad === 5,
+      dPadLeft: dPad === 5 || dPad === 6 || dPad === 7,
       cross: (buf[5] & 32) !== 0,
       circle: (buf[5] & 64) !== 0,
       square: (buf[5] & 16) !== 0,
