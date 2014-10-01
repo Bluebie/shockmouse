@@ -1,7 +1,7 @@
 # build with `coffee -wcmb .`
 _ = require '../node_modules/ds4/node_modules/lodash'
 hid = require '../node_modules/ds4/node_modules/node-hid'
-ds4 = require '../node_modules/ds4'
+#ds4 = require '../node_modules/ds4'
 Color = require 'color'
 events = require('events')
 
@@ -86,7 +86,7 @@ class DS4Gamepad extends events.EventEmitter
     
     # parse incomming reports from controller
     @hid.on 'data', (buf)=>
-      data = ds4.parseDS4HIDData(buf.slice(if @wireless then 2 else 0))
+      data = @_parse_report_data(buf.slice(if @wireless then 2 else 0))
       #console.log data
       @_receive_report data
   
@@ -189,18 +189,75 @@ class DS4Gamepad extends events.EventEmitter
     #@trackpad.touches.sort((a,b)-> a.id - b.id)
     
     # detect changes to buttons
+    changes = {}
     for key, value of @report
-      if value == true and @_previous_report[key] == false
+      if value is true and @_previous_report[key] is false
+        changes[key] = value
         process.nextTick tickEmit(this, 'keydown', key)
         process.nextTick tickEmit(this, "#{key}")
-      if value == false and @_previous_report[key] == true
+      if value is false and @_previous_report[key] is true
+        changes[key] = value
         process.nextTick tickEmit(this, 'keyup', key)
         process.nextTick tickEmit(this, "#{key}Release")
-      if value != @_previous_report[key] and typeof(value) == 'number' and key != 'timestamp'
-        process.nextTick tickEmit(this, 'change', key, value)
+      if key != 'timestamp' and typeof(value) isnt 'boolean' and JSON.stringify(value) isnt JSON.stringify(@_previous_report[key])
+        changes[key] = value
+        #process.nextTick tickEmit(this, 'change', key, value)
         process.nextTick tickEmit(this, "#{key}Change", value)
-    
+    @emit 'change', changes if (key for key of changes).length isnt 0
     @_previous_report = data
+  
+  _parse_report_data: (buf)->
+    {
+      leftAnalog: {x: buf[1] / 127.5 - 1, y: buf[2] / 127.5 - 1}
+      rightAnalog: {x: buf[3] / 127.5 - 1, y: buf[4] / 127.5 - 1}
+      l2Analog: buf[8] / 255
+      r2Analog: buf[9] / 255
+
+      dPadUp:    buf[5] is 0 || buf[5] is 1 || buf[5] is 7
+      dPadRight: buf[5] is 1 || buf[5] is 2 || buf[5] is 3
+      dPadDown:  buf[5] is 3 || buf[5] is 4 || buf[5] is 5
+      dPadLeft:  buf[5] is 5 || buf[5] is 6 || buf[5] is 7
+
+      cross: (buf[5] & 32) isnt 0
+      circle: (buf[5] & 64) isnt 0
+      square: (buf[5] & 16) isnt 0
+      triangle: (buf[5] & 128) isnt 0
+
+      l1: (buf[6] & 0x01) isnt 0
+      l2: (buf[6] & 0x04) isnt 0
+      r1: (buf[6] & 0x02) isnt 0
+      r2: (buf[6] & 0x08) isnt 0
+      l3: (buf[6] & 0x40) isnt 0
+      r3: (buf[6] & 0x80) isnt 0
+
+      share: (buf[6] & 0x10) isnt 0
+      options: (buf[6] & 0x20) isnt 0
+      trackPadButton: (buf[7] & 2) isnt 0
+      psButton: (buf[7] & 1) isnt 0
+
+      # ACCEL/GYRO
+      motionY: buf.readInt16LE(13)
+      motionX: -buf.readInt16LE(15)
+      motionZ: -buf.readInt16LE(17)
+
+      orientationRoll: -buf.readInt16LE(19)
+      orientationYaw: buf.readInt16LE(21)
+      orientationPitch: buf.readInt16LE(23)
+
+      # TRACKPAD
+      trackPadTouch0Id: buf[35] & 0x7f
+      trackPadTouch0Active: (buf[35] >> 7) is 0
+      trackPadTouch0X: ((buf[37] & 0x0f) << 8) | buf[36]
+      trackPadTouch0Y: buf[38] << 4 | ((buf[37] & 0xf0) >> 4)
+
+      trackPadTouch1Id: buf[39] & 0x7f
+      trackPadTouch1Active: (buf[39] >> 7) is 0
+      trackPadTouch1X: ((buf[41] & 0x0f) << 8) | buf[40]
+      trackPadTouch1Y: buf[42] << 4 | ((buf[41] & 0xf0) >> 4)
+
+      #timestamp: buf[7] >> 2
+      batteryLevel: buf[12]
+    }
   
 
 DS4Gamepad.devices =-> hid.devices().filter(isDS4HID)
