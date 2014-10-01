@@ -8,7 +8,6 @@ by pressing in the trackpad button.
 
 Ideas/Todo:
  - Squash memory leaks!
- - Right click via two finger click
  - Right click via two finger tap
  - Right click via the options button
  - Acceleration for mouse, scrolling from system settings? or local settings?

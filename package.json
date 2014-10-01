@@ -13,9 +13,9 @@
     "icon": "images/icon.png",
     "toolbar": true,
     "frame": true,
-    "width": 800,
-    "height": 500,
-    "resizable": false,
+    "//width": 420,
+    "//height": 290,
+    "resizable": true,
     "position": "center"
   },
   "dependencies": {
