@@ -2,6 +2,9 @@
 ObjC = require '../node_modules/NodObjC'
 ObjC.import 'ApplicationServices'
 
+# Do we need an Autorelease pool?
+pool = ObjC.NSAutoreleasePool('alloc')('init')
+
 post = (event)-> ObjC.CGEventPost ObjC.kCGHIDEventTap, event
 create_mouse_event = ObjC.CGEventCreateMouseEvent
 CGPointMake = ObjC.CGPointMake
