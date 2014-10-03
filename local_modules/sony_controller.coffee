@@ -1,5 +1,5 @@
 # build with `coffee -wcmb .`
-_ = require '../node_modules/ds4/node_modules/lodash'
+#_ = require '../node_modules/ds4/node_modules/lodash'
 hid = require '../node_modules/ds4/node_modules/node-hid'
 #ds4 = require '../node_modules/ds4'
 Color = require 'color'
@@ -83,6 +83,8 @@ class DS4Gamepad extends events.EventEmitter
     @_previous_report = {}
     @_touch_obj_cache = [] # cache touch objects so users can add metadata to them which survives between events
     @_config = {led: '#000005', blink: false, rumble: 0}
+    @deadzone = 0.075
+    @zero_padding = 0 for a in [0..256]
     
     # parse incomming reports from controller
     @hid.on 'data', (buf)=>
@@ -100,17 +102,17 @@ class DS4Gamepad extends events.EventEmitter
     @_config[key] = value for key, value of changes
     @_config.rumble_coarse = @_config.rumble_fine = changes.rumble if changes.rumble?
     
-    if @wireless
-      pkt = new Array(77)
-      pkt[0] = 0x11 # feature report id
-      pkt[1] = 128
-      pkt[3] = 255
-      offset = 3
-    else
-      pkt = new Array(31)
-      pkt[0] = 0x05 # feature report id
-      pkt[1] = 255
-      offset = 1
+    # if @wireless
+    #   pkt = new Array(77)
+    #   pkt[0] = 0x11 # feature report id
+    #   pkt[1] = 128
+    #   pkt[3] = 255
+    #   offset = 3
+    # else
+    #   pkt = new Array(31)
+    #   pkt[0] = 0x05 # feature report id
+    #   pkt[1] = 255
+    #   offset = 1
 
     prep = (val)-> Math.max(0, Math.min(Math.round(val * 255), 255))
     
@@ -134,17 +136,20 @@ class DS4Gamepad extends events.EventEmitter
     throw new Error "Rumble values must be numbers between 0.0 and 1.0" unless typeof(rumble.coarse) is 'number' and 0 <= rumble.coarse <= 1
     throw new Error "Rumble values must be numbers between 0.0 and 1.0" unless typeof(rumble.fine) is 'number' and 0 <= rumble.fine <= 1
     
+    packet_data = [
+      prep(rumble.fine), prep(rumble.coarse),
+      color.red(), color.green(), color.blue(),
+      prep(blinkmode.on / 2.55), prep(blinkmode.off / 2.55)
+    ]
     # config data
-    pkt[offset+3] = prep(rumble.fine)
-    pkt[offset+4] = prep(rumble.coarse)
-    pkt[offset+5] = color.red()
-    pkt[offset+6] = color.green()
-    pkt[offset+7] = color.blue()
-    pkt[offset+8] = prep(blinkmode.on / 2.55)
-    pkt[offset+9] = prep(blinkmode.off / 2.55)
+    if @wireless
+      #@hid.sendFeatureReport [0x11, 128, 0, 0xff, 0, 0].concat(packet_data)
+      @hid.sendFeatureReport [0x11, 128, 0, 0xff, 0, 0].concat(packet_data)
+    else
+      @hid.write [0x5, 0xff, 0, 0].concat(packet_data)
     
-    pkt[i] ?= 0 for i in [0...pkt.length] # replace any nulls with 0's
-    @hid.write pkt
+    #pkt[i] ?= 0 for i in [0...pkt.length] # replace any nulls with 0's
+    #@hid.write pkt
   
   
   # Internal: Read new data from Wireless Controller packet, fire off events and stuff
@@ -207,11 +212,14 @@ class DS4Gamepad extends events.EventEmitter
     
     @_previous_report = data
   
+  _deadzone_filter: (value)->
+    if -@deadzone < value < @deadzone then 0 else value
+    
   _parse_report_data: (buf)->
     dPad = buf[5] & 0b1111
     {
-      leftAnalog: {x: buf[1] / 127.5 - 1, y: buf[2] / 127.5 - 1}
-      rightAnalog: {x: buf[3] / 127.5 - 1, y: buf[4] / 127.5 - 1}
+      leftAnalog: {x: @_deadzone_filter(buf[1] / 127.5 - 1), y: @_deadzone_filter(buf[2] / 127.5 - 1)}
+      rightAnalog: {x: @_deadzone_filter(buf[3] / 127.5 - 1), y: @_deadzone_filter(buf[4] / 127.5 - 1)}
       l2Analog: buf[8] / 255
       r2Analog: buf[9] / 255
       
