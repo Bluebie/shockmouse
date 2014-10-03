@@ -78,5 +78,6 @@ for stick in ['leftAnalog', 'rightAnalog']
   gamey.on "change", (changes)->
     for property, value of changes
       if property.match /Analog/
+        console.log "stick changed! #{property} is #{JSON.stringify value}"
         element = svg("DS4_#{property}")
         element.setAttribute('transform', "translate(#{value.x * 20},#{value.y*20})") if element

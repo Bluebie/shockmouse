@@ -127,6 +127,7 @@ for (_i = 0, _len = _ref.length; _i < _len; _i++) {
     for (property in changes) {
       value = changes[property];
       if (property.match(/Analog/)) {
+        console.log("stick changed! " + property + " is " + (JSON.stringify(value)));
         element = svg("DS4_" + property);
         if (element) {
           _results.push(element.setAttribute('transform', "translate(" + (value.x * 20) + "," + (value.y * 20) + ")"));
