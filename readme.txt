@@ -6,6 +6,13 @@ The trackpad on the controller should now control your mouse, including tap to
 click and press in button clicking, two finger vertical scrolling, and dragging
 by pressing in the trackpad button.
 
+Todo before first beta release:
+ - Improve GUI to be pretty and black themed
+ - Checkbox for inverted scrolling
+ - Make new gamepad graphic, prerendered images, check redrawing is fast
+ - Try to find a way to power down extra sensors over bluetooth when idle
+ - Get LED control working over bluetooth, or indicate controller state with on screen popup
+
 Ideas/Todo:
  - Squash memory leaks!
  - Right click via two finger tap
