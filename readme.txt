@@ -14,23 +14,25 @@ Todo before first beta release:
  - Get LED control working over bluetooth, or indicate controller state with on screen popup
 
 Ideas/Todo:
- - Squash memory leaks!
+ - Squash memory leaks! (progress being made!!)
  - Right click via two finger tap
- - Right click via the options button
+ - Right click via the options button?
  - Acceleration for mouse, scrolling from system settings? or local settings?
  - Visualize touches on trackpad in UI because it's cool
  - Figure out why horizontal scrolling doesn't work in NextEvent
- - Retrieve and respect inverted scrolling system setting
- - Key repeat for arrow buttons (menu navigation)
+<3 (COMPLETED) Retrieve and respect inverted scrolling system setting
+<3 (COMPLETED) Key repeat for arrow buttons (menu navigation) from system settings
  - Momentum in scrolling
  - Experiment with mouse cursor momentum
  - Clamp mouse to screen width and height
- - Improve tap to click gesture to avoid accidental triggering
- - Keyboard mapping of more buttons
+ - Option to disable tap to click (or use system setting?)
+<3 (COMPLETED) Keyboard mapping of more buttons (enter and escape added, x and o)
  - Custom keyboard mapping?
  - Gamepad text entry the same way Steam Big Picture implements it
  - Analog Stick scrolling option
+ - Update mechanism?
  - Trackpad zoom gesture (screen zoom?)
+  > http://stackoverflow.com/questions/2487331/is-there-a-way-to-trigger-gesture-events-on-mac-os-x/2489593#2489593
 
 Looking for collaborators and contributors, especially ideas around trackpad
 multitouch api design, gesture classifiers and general data massaging to
