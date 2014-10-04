@@ -1,6 +1,7 @@
 # Module for posting HID events in to the NeXTSTEP system to move mouse around and enter keystrokes and things
 ObjC = require '../node_modules/NodObjC'
 ObjC.import 'ApplicationServices'
+exports.objc = ObjC
 
 # Do we need an Autorelease pool?
 pool = ObjC.NSAutoreleasePool('alloc')('init')
@@ -9,8 +10,37 @@ post = (event)-> ObjC.CGEventPost ObjC.kCGHIDEventTap, event
 create_mouse_event = ObjC.CGEventCreateMouseEvent
 CGPointMake = ObjC.CGPointMake
 
-exports.display_size =->
+# exports.display_size =->
+#
+
+# Fetch system settings, including details about keyboard and mouse
+dict_proxy =(dict)->
+  (key)->
+    return dict unless key
+    ret = dict('objectForKey', ObjC(key))
+    ret = dict_proxy(ret) if ret and ret.getClassName?() == '__NSCFDictionary'
+    return ret
+update_defaults =(notification)->
+  exports.defaults = dict_proxy(ObjC.NSUserDefaults('standardUserDefaults')('dictionaryRepresentation'))
+# some interesting defaults:
+#   com.apple.mouse.tapBehavior - tap to click touchpad behaviour - off = 0, on = 1
+#   com.apple.swipescrolldirection - natural scrolling - off = 0, on = 1
+#   com.apple.trackpad.enableSecondaryClick - right clicking
+#   com.apple.trackpad.momentumScroll - 0 or 1
+#   com.apple.trackpad.scrollBehavior - 2 seems to be required for two finger scrolling to work
+#   com.apple.trackpad.twoFingerDoubleTapGesture - 0 or 1 (the dictionary lookup gesture)
+#   com.apple.trackpad.twoFingerFromRightEdgeSwipeGesture - the notification center open gesture
+
   
+
+# Subscribe to system setting changes
+# notifier = ObjC.NSNotificationCenter('defaultCenter')
+# notifier('addObserverForName',ObjC.NSUserDefaultsDidChangeNotification,
+#                      'object',null,
+#                       'queue',null,
+#                  'usingBlock',ObjC(update_defaults, [ObjC.void, [ObjC.id]]))
+update_defaults() # load initial defaults
+
 
 # mouse stuff:
 mouse_buttons = ['left', 'right', 'center']
