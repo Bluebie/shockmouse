@@ -65,9 +65,16 @@ class DS4TouchEvent extends events.EventEmitter
   constructor: ->
     @created = new Date
     @delta = {x: 0, y: 0}
+  
+  # some defaults in the prototype
+  x: 0
+  y: 0
+  id: -1
+  active: false
+    
 
-tickEmit = (target, event, arg)->
-  return -> target.emit(event, arg)
+# tickEmit = (target, event, arg)->
+#   return -> target.emit(event, arg)
 
 class DS4Gamepad extends events.EventEmitter
   constructor: (device_descriptor)->
@@ -78,18 +85,21 @@ class DS4Gamepad extends events.EventEmitter
     
     # setup some initial variables
     @report = {}
-    @timestamp = new Date
+    @updated = Date.now
     @trackpad = { touches: [] }
-    @_previous_report = {}
+    #@_previous_report = {}
     @_touch_obj_cache = [] # cache touch objects so users can add metadata to them which survives between events
     @_config = {led: '#000005', blink: false, rumble: 0}
     @deadzone = 0.075
     @zero_padding = 0 for a in [0..256]
+    @ratelimit = false # set this to an fps-style number to throttle events (and improve CPU load)
     
     # parse incomming reports from controller
     @hid.on 'data', (buf)=>
-      data = @_parse_report_data(buf.slice(if @wireless then 2 else 0))
-      #console.log data
+      return if @ratelimit and (Date.now() - @updated) < (1000 / @ratelimit)
+      @updated = Date.now()
+      
+      data = @_parse_report_data(if @wireless then buf.slice(2) else buf)
       @_receive_report data
   
   
@@ -144,71 +154,78 @@ class DS4Gamepad extends events.EventEmitter
     # config data
     if @wireless
       #@hid.sendFeatureReport [0x11, 128, 0, 0xff, 0, 0].concat(packet_data)
-      @hid.sendFeatureReport [0x11, 128, 0, 0xff, 0, 0].concat(packet_data)
+      #@hid.sendFeatureReport [0x11, 128, 0, 0xff, 0, 0].concat(packet_data, @zero_padding)[0...]
     else
       @hid.write [0x5, 0xff, 0, 0].concat(packet_data)
-    
-    #pkt[i] ?= 0 for i in [0...pkt.length] # replace any nulls with 0's
-    #@hid.write pkt
   
   
   # Internal: Read new data from Wireless Controller packet, fire off events and stuff
   _receive_report: (data)->
     #@timestamp = new Date
     @report = data
+    queue = [] # queue of events to dispatch once the new state is fully implemented
+    @_previous_report ||= data # if this is the first time.. pretend no changes
     
     # detect changes on the touchpad
-    @trackpad.touches = []
-    makeTouchObj = (info, idx)->
-      {
-        x: info["trackPadTouch#{idx}X"]
-        y: info["trackPadTouch#{idx}Y"]
-        active: info["trackPadTouch#{idx}Active"]
-        id: info["trackPadTouch#{idx}Id"]
-      }
+    touches = {
+      active: []
+      started: []
+      moved: []
+      ended: []
+    }
     
-    for idx in [0,1]
-      # update touch cache
-      old_touch = makeTouchObj(@_previous_report, idx)
-      new_touch = makeTouchObj(data, idx)
-      @_touch_obj_cache[new_touch.id] ||= new DS4TouchEvent
-      touch = @_touch_obj_cache[new_touch.id]
-      touch[key] = value for key, value of new_touch # update touch object in cache
-      touch.delta.x = new_touch.x - old_touch.x
-      touch.delta.y = new_touch.y - old_touch.y
+    for touch_update, idx in data.trackpad
       
-      if old_touch.id != new_touch.id and new_touch.active
-        process.nextTick tickEmit(this, 'touchstart', touch)
-      if old_touch.active and !new_touch.active
+      touch = @_touch_obj_cache[touch_update.id] # fetch existing touch object
+      @_touch_obj_cache[touch_update.id] = touch = new DS4TouchEvent unless touch # make new object if doesn't exist
+      old_touch = @_previous_report.trackpad[idx]
+      touch[key] = value for key, value of touch_update
+      
+      # generate position delta
+      if old_touch.id is touch.id
+        touch.delta.x = touch.x - old_touch.x
+        touch.delta.y = touch.y - old_touch.y
+        
+      touches.active.push touch if touch.active
+      
+      if old_touch.id isnt touch.id and touch.active
+        touches.started.push touch
+      
+      if old_touch.active and !touch.active
+        touches.ended.push touch
         @_touch_obj_cache[touch.id] = null
-        process.nextTick tickEmit(this, 'touchend', touch)
-        process.nextTick tickEmit(touch, 'touchend', touch)
-      if (old_touch.x != new_touch.x or old_touch.y != new_touch.y) and old_touch.active and new_touch.active
-        process.nextTick tickEmit(this, 'touchmove', touch)
-        process.nextTick tickEmit(touch, 'touchmove', touch)
-      @trackpad.touches.push(touch) if touch.active
+      
+      if (old_touch.x != touch.x or old_touch.y != touch.y) and old_touch.active and touch.active
+        touches.moved.push touch
     
-    #@trackpad.touches.sort((a,b)-> a.id - b.id)
     
     # detect changes to buttons
     changes = {}
     for key, value of @report
       if value is true and @_previous_report[key] is false
         changes[key] = value
-        process.nextTick tickEmit(this, 'keydown', key)
-        process.nextTick tickEmit(this, "#{key}")
       if value is false and @_previous_report[key] is true
         changes[key] = value
-        process.nextTick tickEmit(this, 'keyup', key)
-        process.nextTick tickEmit(this, "#{key}Release")
-      if key != 'timestamp' and typeof(value) isnt 'boolean' and JSON.stringify(value) isnt JSON.stringify(@_previous_report[key])
+      if key isnt 'timestamp' and key isnt 'trackpad' and typeof(value) isnt 'boolean' and JSON.stringify(value) isnt JSON.stringify(@_previous_report[key])
         changes[key] = value
-        #process.nextTick tickEmit(this, 'change', key, value)
-        process.nextTick tickEmit(this, "#{key}Change", value)
     
     # share report to interested listeners
     @emit 'report', data
     @emit 'change', changes if (key for key of changes).length isnt 0
+    for key, value of changes
+      if value is true
+        @emit 'keydown', key
+        @emit key
+      else if value is false
+        @emit 'keyup', key
+        @emit "#{key}Release"
+      else
+        @emit key, value
+    
+    @emit 'touch', touches if touches.started.length + touches.ended.length + touches.moved.length > 0
+    @emit 'touchstart', touches.started if touches.started.length > 0
+    touch.emit('move') for touch in touches.moved
+    touch.emit('end') for touch in touches.ended
     
     @_previous_report = data
   
@@ -223,10 +240,10 @@ class DS4Gamepad extends events.EventEmitter
       l2Analog: buf[8] / 255
       r2Analog: buf[9] / 255
       
-      dPadUp:    dPad is 0 || dPad is 1 || dPad is 7
-      dPadRight: dPad is 1 || dPad is 2 || dPad is 3
-      dPadDown:  dPad is 3 || dPad is 4 || dPad is 5
-      dPadLeft:  dPad is 5 || dPad is 6 || dPad is 7
+      up:    dPad is 0 || dPad is 1 || dPad is 7
+      down:  dPad is 3 || dPad is 4 || dPad is 5
+      left:  dPad is 5 || dPad is 6 || dPad is 7
+      right: dPad is 1 || dPad is 2 || dPad is 3
 
       cross: (buf[5] & 32) isnt 0
       circle: (buf[5] & 64) isnt 0
@@ -242,28 +259,26 @@ class DS4Gamepad extends events.EventEmitter
 
       share: (buf[6] & 0x10) isnt 0
       options: (buf[6] & 0x20) isnt 0
-      trackPadButton: (buf[7] & 2) isnt 0
+      trackpadButton: (buf[7] & 2) isnt 0
       psButton: (buf[7] & 1) isnt 0
 
       # ACCEL/GYRO
-      motionY: buf.readInt16LE(13)
-      motionX: -buf.readInt16LE(15)
-      motionZ: -buf.readInt16LE(17)
+      motion: {
+        y: buf.readInt16LE(13)
+        x: -buf.readInt16LE(15)
+        z: -buf.readInt16LE(17)
+      }
+      orientation: {
+        roll: -buf.readInt16LE(19)
+        yaw: buf.readInt16LE(21)
+        pitch: buf.readInt16LE(23)
+      }
 
-      orientationRoll: -buf.readInt16LE(19)
-      orientationYaw: buf.readInt16LE(21)
-      orientationPitch: buf.readInt16LE(23)
-
-      # TRACKPAD
-      trackPadTouch0Id: buf[35] & 0x7f
-      trackPadTouch0Active: (buf[35] >> 7) is 0
-      trackPadTouch0X: ((buf[37] & 0x0f) << 8) | buf[36]
-      trackPadTouch0Y: buf[38] << 4 | ((buf[37] & 0xf0) >> 4)
-
-      trackPadTouch1Id: buf[39] & 0x7f
-      trackPadTouch1Active: (buf[39] >> 7) is 0
-      trackPadTouch1X: ((buf[41] & 0x0f) << 8) | buf[40]
-      trackPadTouch1Y: buf[42] << 4 | ((buf[41] & 0xf0) >> 4)
+      # trackpad data
+      trackpad: [
+        {id: buf[35] & 0x7f, active: (buf[35] >> 7) is 0, x: ((buf[37] & 0x0f) << 8) | buf[36], y: buf[38] << 4 | ((buf[37] & 0xf0) >> 4)}
+        {id: buf[39] & 0x7f, active: (buf[39] >> 7) is 0, x: ((buf[41] & 0x0f) << 8) | buf[40], y: buf[42] << 4 | ((buf[41] & 0xf0) >> 4)}
+      ]
 
       #timestamp: buf[7] >> 2
       batteryLevel: buf[12]
