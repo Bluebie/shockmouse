@@ -47,6 +47,7 @@ DS4Gamepad = (function(_super) {
       blink: false,
       rumble: 0
     };
+    this.set({});
     this.hid.on('data', (function(_this) {
       return function(buf) {
         var data;
@@ -306,7 +307,7 @@ DS4Report = (function() {
         y: buf[42] << 4 | ((buf[41] & 0xf0) >> 4)
       }
     ];
-    this.batteryLevel = buf[12];
+    this.batteryLevel = buf[12] / 255;
   }
 
   return DS4Report;

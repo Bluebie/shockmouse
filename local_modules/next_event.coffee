@@ -22,6 +22,7 @@ dict_proxy =(dict)->
     return ret
 update_defaults =(notification)->
   exports.defaults = dict_proxy(ObjC.NSUserDefaults('standardUserDefaults')('dictionaryRepresentation'))
+  exports.defaults.update = update_defaults
 # some interesting defaults:
 #   com.apple.mouse.tapBehavior - tap to click touchpad behaviour - off = 0, on = 1
 #   com.apple.swipescrolldirection - natural scrolling - off = 0, on = 1
@@ -41,36 +42,44 @@ update_defaults =(notification)->
 #                  'usingBlock',ObjC(update_defaults, [ObjC.void, [ObjC.id]]))
 update_defaults() # load initial defaults
 
+# common details
+hid_source = ObjC.CGEventSourceCreate(ObjC.kCGEventSourceStateHIDSystemState)
 
 # mouse stuff:
 mouse_buttons = ['left', 'right', 'center']
 mouse_button_names = ['Left', 'Right']
 mouse_button_name = (id)-> mouse_button_names[id] || 'Other'
 exports.mouse_move = (x, y)->
-  post create_mouse_event(null, ObjC.kCGEventMouseMoved, CGPointMake(x, y), 0)
+  post create_mouse_event(hid_source, ObjC.kCGEventMouseMoved, CGPointMake(x, y), 0)
 
-exports.mouse_down = (x, y, button = 'left')->
+exports.mouse_down = (x, y, button = 'left', clicks = 1, clickid = null)->
   button = mouse_buttons.indexOf(button) if typeof(button) is 'string'
-  post create_mouse_event(null, ObjC["kCGEvent#{mouse_button_name(button)}MouseDown"], CGPointMake(x, y), button)
+  event = create_mouse_event(hid_source, ObjC["kCGEvent#{mouse_button_name(button)}MouseDown"], CGPointMake(x, y), button)
+  ObjC.CGEventSetIntegerValueField event, ObjC.kCGMouseEventClickState, clicks if clicks
+  ObjC.CGEventSetIntegerValueField event, ObjC.kCGMouseEventNumber, clickid if clickid
+  post event
 
-exports.mouse_up = (x, y, button = 'left')->
+exports.mouse_up = (x, y, button = 'left', clicks = 1, clickid = null)->
   button = mouse_buttons.indexOf(button) if typeof(button) is 'string'
-  post create_mouse_event(null, ObjC["kCGEvent#{mouse_button_name(button)}MouseUp"], CGPointMake(x, y), button)
+  event = create_mouse_event(hid_source, ObjC["kCGEvent#{mouse_button_name(button)}MouseUp"], CGPointMake(x, y), button)
+  ObjC.CGEventSetIntegerValueField event, ObjC.kCGMouseEventClickState, clicks if clicks
+  ObjC.CGEventSetIntegerValueField event, ObjC.kCGMouseEventNumber, clickid if clickid
+  post event
 
 # this one seems pointless? implied by down and up I would expect!
 exports.mouse_drag = (x, y, button = 'left')->
   button = mouse_buttons.indexOf(button) if typeof(button) is 'string'
-  post create_mouse_event(null, ObjC["kCGEvent#{mouse_button_name(button)}MouseDragged"], CGPointMake(x, y), button)
+  post create_mouse_event(hid_source, ObjC["kCGEvent#{mouse_button_name(button)}MouseDragged"], CGPointMake(x, y), button)
 
 # emulate a fast single click
-exports.mouse_click = (x, y, button = 'left')->
-  exports.mouse_down x, y, button
-  exports.mouse_up x, y, button
+exports.mouse_click = (args...)->
+  exports.mouse_down args...
+  exports.mouse_up args...
 
 # emulate scrolling a number of pixels
 exports.mouse_scroll_wheel = (scroll_x, scroll_y)->
   # sending in two events because of compatibility weirdness - some apps seem to ignore two wheel inputs
-  post ObjC.CGEventCreateScrollWheelEvent(null, ObjC.kCGScrollEventUnitPixel, 1, scroll_y)
+  post ObjC.CGEventCreateScrollWheelEvent(hid_source, ObjC.kCGScrollEventUnitPixel, 1, scroll_y)
   # post ObjC.CGEventCreateScrollWheelEvent(null, ObjC.kCGScrollEventUnitPixel, 2, scroll_y, scroll_x)
 
 # get mouse position
@@ -78,17 +87,42 @@ exports.mouse =->
   ObjC.CGEventGetLocation(ObjC.CGEventCreate(null))
 
 # keyboard stuff:
-exports.key_down = (keycode)->
+keyboard_event_masks =
+  CapsLock: ObjC.kCGEventFlagMaskAlphaShift
+  Shift:    ObjC.kCGEventFlagMaskShift
+  Control:  ObjC.kCGEventFlagMaskControl
+  Option:   ObjC.kCGEventFlagMaskAlternate
+  Command:  ObjC.kCGEventFlagMaskCommand
+  Function: ObjC.kCGEventFlagMaskSecondaryFn
+modifiers_down = []
+
+key_event = (keycode, down, flags)->
   keycode = exports.keys[keycode] if typeof(keycode) is 'string'
-  post ObjC.CGEventCreateKeyboardEvent(null, keycode, true)
+  event = ObjC.CGEventCreateKeyboardEvent(null, keycode, down)
+  for flag in flags
+    ObjC.CGEventSetFlags(event, keyboard_event_masks[flag]) if keyboard_event_masks[flag]?
+  post event
+
+exports.key_down = (keycode)->
+  modifiers_down.push keycode if keyboard_event_masks[keycode]? and modifiers_down.indexOf(keycode) is -1
+  key_event(keycode, true, modifiers_down)
+  # keycode = exports.keys[keycode] if typeof(keycode) is 'string'
+  # post ObjC.CGEventCreateKeyboardEvent(null, keycode, true)
 
 exports.key_up = (keycode)->
-  keycode = exports.keys[keycode] if typeof(keycode) is 'string'
-  post ObjC.CGEventCreateKeyboardEvent(null, keycode, false)
+  modifiers_down = modifiers_down.filter (mod)-> mod isnt keycode
+  key_event(keycode, false, modifiers_down)
+  # keycode = exports.keys[keycode] if typeof(keycode) is 'string'
+  # post ObjC.CGEventCreateKeyboardEvent(null, keycode, false)
 
-exports.keystroke = (keycode)->
-  exports.key_down keycode
-  exports.key_up keycode
+exports.keystroke = (keys...)->
+  for key in keys
+    if typeof(key) is 'string' or typeof(key) is 'number'
+      exports.key_down key
+      exports.key_up key
+    else if key.reverse? # array
+      exports.key_down press for press in key
+      exports.key_up press for press in key.reverse()
 
 # Mac OS X Virtual Keycode table
 exports.keys =   
