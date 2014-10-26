@@ -76,27 +76,30 @@ class DS4Gamepad extends events.EventEmitter
     throw new Error "Rumble values must be numbers between 0.0 and 1.0" unless typeof(rumble.coarse) is 'number' and 0 <= rumble.coarse <= 1
     throw new Error "Rumble values must be numbers between 0.0 and 1.0" unless typeof(rumble.fine) is 'number' and 0 <= rumble.fine <= 1
     
-    packet_data = new Buffer([
+    packet_data = [
       prep(rumble.fine), prep(rumble.coarse),
       color.red(), color.green(), color.blue(),
       prep(blinkmode.on / 2.55), prep(blinkmode.off / 2.55)
-    ])
+    ]
 
     # config data
     if @wireless
-      packet = new Buffer(0)
-      packet.fill 0 # fill buffer with zeros to begin
-      packet.copy [0x11, 128, 0, 0xff], 0 # add the initial header
-      packet.copy packet_data, 6 # add the message
-      packet.writeInt32LE(crc32.unsigned(packet[0...]))
-      packet = [0x11, 128, 0, 0xff, 0, 0].concat(packet_data, @zero_padding)[0...]
-      result = crc32.unsigned(packet)
-      packet.writeInt32LE crc32.unsigned(packet), 
-      @hid.sendFeatureReport packet
-      #@hid.sendFeatureReport [0x11, 128, 0, 0xff, 0, 0].concat(packet_data)
-      #@hid.sendFeatureReport [0x11, 128, 0, 0xff, 0, 0].concat(packet_data, @zero_padding)[0...]
+      # template packet from http://eleccelerator.com/wiki/index.php?title=DualShock_4#0x11_2
+      packet = new Buffer([
+        0xa2, 0x11, 0xc0, 0x20, 0xf0, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x43, 0x43, 0x00, 0x4d, 0x85, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd8, 0x8e, 0x94, 0xdd
+      ])
+      # paste in our packet data
+      #packet.copy new Buffer(packet_data), 7 # add the message
+      # update the crc32 bytes
+      #packet.writeInt32LE(crc32.unsigned(packet[0...74]), 74)
+      #console.log packet
+      #@hid.sendFeatureReport packet.slice(1, 78)
     else
-      @hid.write [0x5, 0xff, 0, 0].concat(packet_data.toJSON())
+      @hid.write [0x5, 0xff, 0, 0].concat(packet_data)
 
   # Internal: Read new data from Wireless Controller packet, fire off events and stuff
   _receive_report: (data)->

@@ -64,7 +64,7 @@ DS4Gamepad = (function(_super) {
   }
 
   DS4Gamepad.prototype.set = function(changes) {
-    var blinkmode, color, key, packet, packet_data, prep, result, rumble, setting, value, _ref, _ref1;
+    var blinkmode, color, key, packet, packet_data, prep, rumble, setting, value, _ref, _ref1;
     for (setting in changes) {
       value = changes[setting];
       if (this._config[setting] == null) {
@@ -112,18 +112,11 @@ DS4Gamepad = (function(_super) {
     if (!(typeof rumble.fine === 'number' && (0 <= (_ref1 = rumble.fine) && _ref1 <= 1))) {
       throw new Error("Rumble values must be numbers between 0.0 and 1.0");
     }
-    packet_data = new Buffer([prep(rumble.fine), prep(rumble.coarse), color.red(), color.green(), color.blue(), prep(blinkmode.on / 2.55), prep(blinkmode.off / 2.55)]);
+    packet_data = [prep(rumble.fine), prep(rumble.coarse), color.red(), color.green(), color.blue(), prep(blinkmode.on / 2.55), prep(blinkmode.off / 2.55)];
     if (this.wireless) {
-      packet = new Buffer(0);
-      packet.fill(0);
-      packet.copy([0x11, 128, 0, 0xff], 0);
-      packet.copy(packet_data, 6);
-      packet.writeInt32LE(crc32.unsigned(packet.slice(0)));
-      packet = [0x11, 128, 0, 0xff, 0, 0].concat(packet_data, this.zero_padding).slice(0);
-      result = crc32.unsigned(packet);
-      return packet.writeInt32LE(crc32.unsigned(packet), this.hid.sendFeatureReport(packet));
+      return packet = new Buffer([0xa2, 0x11, 0xc0, 0x20, 0xf0, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x43, 0x43, 0x00, 0x4d, 0x85, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd8, 0x8e, 0x94, 0xdd]);
     } else {
-      return this.hid.write([0x5, 0xff, 0, 0].concat(packet_data.toJSON()));
+      return this.hid.write([0x5, 0xff, 0, 0].concat(packet_data));
     }
   };
 
